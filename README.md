@@ -1,5 +1,5 @@
 # EasyVS
-## 基于Autodock vina的批量分子筛选pipeline
+## 高自由度，高通量，基础成本，基于Autodock vina的批量分子筛选pipeline
 
 ## S1，受体（macromolecule）准备
 S1-1 使用 Alphafold3 同源建模 或者在 PDB database 网站下载蛋白结构文件  
