@@ -1,34 +1,33 @@
 # EasyVS
-## 高自由度，高通量，基础成本，基于Autodock vina的批量分子筛选pipeline
+## A highly flexible, high-throughput, and cost-effective batch molecular screening pipeline based on Autodock Vina.
 
-## S1，受体（macromolecule）准备
-S1-1 使用 Alphafold3 同源建模 或者在 PDB database 网站下载蛋白结构文件  
-S1-2 alphafold3 预测的蛋白结构使用Pymol转换成PDB格式，PDB database网站下载的则使用Pymol打开删除水分子和配体  
-S1-3 使用MGLTools处理macromolecule，加氢计算电荷然后转换成PDBQT格式  
+## Receptor (Macromolecule) Preparation​
+S1-1​ Perform homology modeling using AlphaFold 3 or download the protein structure file from the PDB database.
+S1-2​ For structures predicted by AlphaFold 3, convert the model to PDB format using PyMOL. For structures downloaded from the PDB database, open them in PyMOL and remove water molecules and ligands.
+S1-3​ Process the macromolecule with MGLTools: add hydrogen atoms, calculate charges, and convert it to PDBQT format.
+## Ligand Preparation​
+S2-1​ Download the 3D SDF files of the target small molecules from databases/websites such as `PubChem, Enamine REAL, ZINC, and Life Chemicals`.
 
-## S2，配体（Ligand）准备
-S2-1 在`PubChem，Enamine Real，ZINC，Life Chemicals`等网站下载目标小分子的3D SDF格式文件  
+S2-2​ Use the `Split_SDF.pyscript` to split the SDF file, preventing insufficient RAM in subsequent calculations.
+Usage: `python Split_SDF.py input_file.sdf output_prefix chunk_size`
 
-S2-2 使用`Split_SDF.py` 脚本分割SDF文件，预防后续计算RAM不足  
-使用方法：`python Split_SDF.py 输入文件.sdf 输出前缀 分块大小`  
+S2-3​ Use `Process_SDF.py` to process the split small molecules sequentially, performing RO5 filtering, removing salt ions, adding hydrogens, converting 2D to 3D, and optimizing the 3D structure (MMFF94).
+Usage: `python Process_SDF.py input_file.sdf output_file.sdf`
 
-S2-3 使用`Process_SDF.py`厉遍分割后的小分子，进行RO5过滤，去除盐离子，加氢，2D转3D，3D结构优化(MMFF94)  
-使用方法:  `python Process_SDF.py 输入文件.sdf 输出文件.sdf`    
+S2-4​ If the server has limited RAM and there are many split small molecule files, use the `submit_jobs.sh` script to submit jobs in batch.
+Usage: `./submit_jobs.sh`
+Note: The script needs to be modified according to the type of Computer Cluster (LSF, PBS, or others).
 
-S2-4 如果服务器RAM比较小，分割后的小分子文件较多，可以使用`submit_jobs.sh`脚本批量提交任务  
-使用方法： `./submit_jobs.sh`
-注意：脚本需要根据Computer Cluster的种类（LSF，PBS或者其他）进行修改。
+S2-5​ Use `meeko` to compute charges for the 3D .sdf file and generate PDBQT files in tar.gz archives of 500 molecules each.
+`mk_prepare_ligand.py -i processed_chunk_1.sdf --multimol_outdir meeko_chunk1 --multimol_prefix meeko_chunk1 -z --multimol_targz_size 500`
 
-S2-5 使用`meeko`给3D.sdf文件计算电荷，生成每 500 pdbqt/tar.gt  
-`mk_prepare_ligand.py -i processed_chunk_1.sdf --multimol_outdir meeko_chunk1 --multimol_prefix meeko_chunk1 -z --multimol_targz_size 500`  
+S2-6​ If the small molecules downloaded from the websites contain molecular complexes, use `single_fragment_filter.py` to retain the small molecule with the largest molecular weight before proceeding to step S2-5.
+Usage: `python single_fragment_filter.py input_file.sdf output_file.sdf`
 
-s2-6 如果网站中下载的小分子中有小分子复合体，使用`single_fragment_filter.py`保留分子量最大的小分子后再进行步骤S2-5
-使用方法： `python single_fragment_filter.py 输入文件.sdf 输出文件.sdf`  
 
-## S3，历遍-初级虚拟筛选（Virtual  screening）  
+## S3. Batch Primary Virtual Screening
 
-S3-1 使用Autodock vina 批量对接转换成pdbqt格式的小分子,这个脚本不直接运行，使用下个脚本调用
-
+S3-1 Use Autodock Vina to perform batch docking of small molecules converted into PDBQT format. This script is not run directly; it is called by the next script.
 `#!/bin/bash`  
 `# 从脚本：实际执行对接任务`  
 
@@ -57,7 +56,7 @@ done`  PS：这里的X,Y,Z坐标数据由MGLTools收集。
 
 `rm -rf "$TEMP_DIR"`   
 
-S3-2 使用脚本批量提交任务
+S3-2 Use the script to submit jobs in batch.
 
 `vi Run_Vina.sh` 创建一个名为Run_Vina.sh的脚本进行高通量虚拟筛选
 `#!/bin/bash`  
@@ -76,7 +75,7 @@ S3-2 使用脚本批量提交任务
          "bash run_vina.sh '$TAR_FILE' '$RECEPTOR' '$OUTPUT_DIR' '$GRID_SIZE'"  
 done`  
 
-S3-3 调用服务器资源  
+S3-3 Call on server resources.
 `#!/bin/bash`  
 `#BSUB -J sdf_processing[1-10]    # 作业数组，处理10个任务`  
 `#BSUB -n 1                       # 每个任务使用1个核心，这个服务器上每个核会分配5GB RAM，每个任务申请一个核应该够了`  
@@ -85,8 +84,9 @@ S3-3 调用服务器资源
 `#BSUB -e job_error.%J.%I.log     # 错误日志文件`  
 `#BSUB -q normal                  # 使用的队列`  
 `./submit_Vina_jobs.sh`  
-计算资源申请与计算时间：如果有50W小分子被分成1000个文件，每个文件500个小分子，一个核处理一个文件每个小分子平均耗费15秒，500个小分子大概耗费两小时。也就是说单核处理500小分子耗费2小时，50W小分子耗费83天。100核耗费0.83天约20小时。  
+Computational Resource Request and Time Estimation:
+If 500,000 small molecules are split into 1,000 files, each containing 500 molecules, and a single core processes one file with an average time of 15 seconds per small molecule, processing 500 molecules would take approximately 2 hours. This means a single core would require 2 hours for 500 molecules, and 83 days for the entire set of 500,000 molecules. Using 100 cores would reduce the total time to 0.83 days, or about 20 hours.
 
-S3-4 使用`extract_best_compounds.py`提取结合能最低的结果  
+S3-4 Use `extract_best_compounds.py` to extract the results with the lowest binding energy.
 
-使用方法：`python extract_best_compounds.py_name.py 输入文件夹 输出文件夹`
+Usage：`python extract_best_compounds.py_name.py 输入文件夹 输出文件夹`
