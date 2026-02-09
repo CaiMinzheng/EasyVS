@@ -3,8 +3,11 @@
 
 ## Receptor (Macromolecule) Preparation​
 S1-1​ Perform homology modeling using AlphaFold 3 or download the protein structure file from the PDB database.
+
 S1-2​ For structures predicted by AlphaFold 3, convert the model to PDB format using PyMOL. For structures downloaded from the PDB database, open them in PyMOL and remove water molecules and ligands.
+
 S1-3​ Process the macromolecule with MGLTools: add hydrogen atoms, calculate charges, and convert it to PDBQT format.
+
 ## Ligand Preparation​
 S2-1​ Download the 3D SDF files of the target small molecules from databases/websites such as `PubChem, Enamine REAL, ZINC, and Life Chemicals`.
 
